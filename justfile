@@ -1,5 +1,5 @@
-[doc("bring tansu/pg up, create tansu topics")]
-up: docker-compose-down docker-compose-up order-topic-create accept-topic-create
+[doc("bring nisshi/pg up, create nisshi topics and the shop")]
+up: docker-compose-down docker-compose-up order-topic-create accept-topic-create shop-create
 
 down: docker-compose-down
 
@@ -23,17 +23,23 @@ docker-compose-logs *args:
 psql *args:
     docker compose exec primary psql {{ args }}
 
+# The shop's tables and triggers refer to the tables that Nisshi creates when it
+# first starts, so they are created once Nisshi is up and its topics exist.
+[doc("create the shop's tables and triggers")]
+shop-create:
+    docker compose exec -T primary psql --quiet --set ON_ERROR_STOP=1 < etc/shop.sql
+
 [private]
 psql-command sql *args:
     docker compose exec primary psql {{ args }} --command "{{ sql }}"
 
 [private]
 topic-create topic *args:
-    docker compose exec tansu /tansu topic create {{ topic }} {{ args }}
+    docker compose exec nisshi /nisshi topic create {{ topic }} {{ args }}
 
-[doc("list tansu topics")]
+[doc("list nisshi topics")]
 topic-list:
-    docker compose exec tansu /tansu topic list | jq '.[].name'
+    docker compose exec nisshi /nisshi topic list | jq '.[].name'
 
 [private]
 order-topic-create *args: (topic-create "order_json" args) (topic-create "order_xml" args)
@@ -43,19 +49,19 @@ accept-topic-create *args: (topic-create "accepted_orders" args)
 
 [doc("python produce to 'order_json' topic from a good standing customer")]
 good-purchase-json:
-    echo '{"value": {"email": "a@b.com", "sku": "SK01", "quantity": 1}}' | docker compose exec -T tansu /tansu cat produce order_json -
+    echo '{"value": {"email": "a@b.com", "sku": "SK01", "quantity": 1}}' | docker compose exec -T nisshi /nisshi cat produce order_json -
 
 [doc("java produce to 'order_xml' topic from a good standing customer")]
 good-purchase-xml:
-    echo '<order><email>a@b.com</email><sku>SK01</sku><quantity>1</quantity></order>' | docker compose exec -T kafka  /opt/kafka/bin/kafka-console-producer.sh --bootstrap-server tansu:9092 --topic order_xml
+    echo '<order><email>a@b.com</email><sku>SK01</sku><quantity>1</quantity></order>' | docker compose exec -T kafka  /opt/kafka/bin/kafka-console-producer.sh --bootstrap-server nisshi:9092 --topic order_xml
 
 [doc("python producer purchase from a blocked customer")]
 blocked-purchase-json:
-    echo '{"value": {"email": "fraud@c.com", "sku": "SK01", "quantity": 1}}' | docker compose exec -T tansu /tansu cat produce order -
+    echo '{"value": {"email": "fraud@c.com", "sku": "SK01", "quantity": 1}}' | docker compose exec -T nisshi /nisshi cat produce order_json -
 
 [doc("kafka producer purchase from a blocked customer")]
 blocked-purchase-xml:
-    echo '<order><email>fraud@c.com</email><sku>SK01</sku><quantity>1</quantity></order>' | docker compose exec -T kafka  /opt/kafka/bin/kafka-console-producer.sh --bootstrap-server tansu:9092 --topic order_xml
+    echo '<order><email>fraud@c.com</email><sku>SK01</sku><quantity>1</quantity></order>' | docker compose exec -T kafka  /opt/kafka/bin/kafka-console-producer.sh --bootstrap-server nisshi:9092 --topic order_xml
 
 [doc("list all customers")]
 select-customer: (psql-command "select * from customer order by email")
@@ -85,4 +91,4 @@ consumer-python:
 
 [doc("java consumer on 'accepted_orders' topic")]
 consumer-java:
-    docker compose exec kafka  /opt/kafka/bin/kafka-console-consumer.sh --bootstrap-server tansu:9092 --topic accepted_orders
+    docker compose exec kafka  /opt/kafka/bin/kafka-console-consumer.sh --bootstrap-server nisshi:9092 --topic accepted_orders

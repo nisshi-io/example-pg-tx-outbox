@@ -42,7 +42,7 @@ create table customer (
     blocked bool not null
 );
 
--- an order request that has come from the "order" tansu topic
+-- an order request that has come from the "order" Nisshi topic
 --
 create table order_request (
     id int generated always as identity primary key,
@@ -81,7 +81,7 @@ insert into customer (email, blocked) values ('a@b.com', false);
 insert into customer (email, blocked) values ('fraud@c.com', true);
 
 
-create or replace function on_tansu_record_insert() returns trigger as $$
+create or replace function on_nisshi_record_insert() returns trigger as $$
 declare
     topic_name text;
 begin
@@ -138,7 +138,7 @@ end;
 $$ LANGUAGE plpgsql;
 
 
-create function tansu_produce_message(topic_name text, partition_num int, k bytea, v bytea) returns bigint as $$
+create function nisshi_produce_message(topic_name text, partition_num int, k bytea, v bytea) returns bigint as $$
 declare
     current_watermark watermark%ROWTYPE;
     updated_low bigint;
@@ -229,7 +229,7 @@ begin
             returning order_status.ext_ref into ext_ref;
 
             RAISE NOTICE 'ext_ref: %', ext_ref;
-            perform tansu_produce_message('accepted_orders', partition_num, null, format('{"ref": "%s"}', ext_ref::text)::bytea);
+            perform nisshi_produce_message('accepted_orders', partition_num, null, format('{"ref": "%s"}', ext_ref::text)::bytea);
         end;
     else
         RAISE NOTICE 'order: rejected';
@@ -242,9 +242,9 @@ end;
 $$ LANGUAGE plpgsql;
 
 
-create trigger tansu_record_insert
+create trigger nisshi_record_insert
 after insert on record
-    for each row execute function on_tansu_record_insert();
+    for each row execute function on_nisshi_record_insert();
 
 create trigger order_request_insert
 after insert on order_request

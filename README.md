@@ -8,7 +8,7 @@
 
 # Transactional Outbox Replacement
 
-In [Tansu](https://github.com/tansu-io/tansu), the storage engine is used to store both the messages and the Kafka-compatible metadata.
+In [Nisshi](https://github.com/nisshi-io/solace-nisshi), the storage engine is used to store both the messages and the Kafka-compatible metadata.
 That same storage engine (the database) can also store the business entities related to the messages.
 
 If that is the case,
@@ -59,7 +59,7 @@ end if;
 
 > 💡 If you were do to this with regular Kafka, you'd have to use something like the [Transactional Outbox](https://microservices.io/patterns/data/transactional-outbox.html) - a pattern typically used when a command must update the database and send messages in an atomic way (in order to avoid data inconsistencies and bugs).
 
-In Tansu, updating a business entity and sending a message atomically is just an `UPDATE` and `INSERT` inside a regular database transaction (atomic by definition).
+In Nisshi, updating a business entity and sending a message atomically is just an `UPDATE` and `INSERT` inside a regular database transaction (atomic by definition).
 No more complexity.  No need for other moving parts that need to be monitored 24/7, with a latency inducing service polling an `OUTBOX` table forwarding messages to the broker.
 
 # The Steps
@@ -98,7 +98,7 @@ The **online shop** has the following main entities database entities:
 - **order_request**: Orders from the "order_json" and "order_xml" topics, linking customers to products
 - **order_status**: Status tracking for each order with external reference UUID
 
-We also need to reference one entity from the **tansu** schema:
+We also need to reference one entity from the **Nisshi** schema:
 
 - **record**: Contains Kafka messages that have been produced to any topic, with their topic, partition and message offset
 
@@ -201,12 +201,12 @@ create table order_request (
 );
 ```
 
-> 💡 Tansu uses a `record` table to store messages that are produced to the broker. The table is [partitioned](https://www.postgresql.org/docs/current/ddl-partitioning.html) by `topic` and `partition` effectively making each a separate table under the hood.
+> 💡 Nisshi uses a `record` table to store messages that are produced to the broker. The table is [partitioned](https://www.postgresql.org/docs/current/ddl-partitioning.html) by `topic` and `partition` effectively making each a separate table under the hood.
 
 ## Business Logic Trigger
 
 We can use a [trigger](https://www.postgresql.org/docs/18/sql-createtrigger.html)
-on Tansu's `record` table to populate the `order_request` table as each record is
+on Nisshi's `record` table to populate the `order_request` table as each record is
 inserted inside a particular topic.
 In our example, this input topic is called `order_json` or `order_xml`. 
 
@@ -215,7 +215,7 @@ In our example, this input topic is called `order_json` or `order_xml`.
 ```sql
 -- Writing to the `order_json` or `order_xml` topics will populate the `order_request` table
 -- Writing to any other topic will be a no-op
-create or replace function on_tansu_record_insert() returns trigger as $$
+create or replace function on_nisshi_record_insert() returns trigger as $$
 declare
     topic_name text;
 begin
@@ -271,12 +271,12 @@ end;
 $$ LANGUAGE plpgsql;
 ```
 
-2. Attach the function via a trigger on `INSERT` to the Tansu `record` table:
+2. Attach the function via a trigger on `INSERT` to the Nisshi `record` table:
 
 ```sql
-create trigger tansu_record_insert
+create trigger nisshi_record_insert
 after insert on record
-for each row execute function on_tansu_record_insert();
+for each row execute function on_nisshi_record_insert();
 ```
 
 3. We can use another [trigger](https://www.postgresql.org/docs/18/sql-createtrigger.html) on the `order_request` table.
@@ -314,7 +314,7 @@ begin
             returning order_status.ext_ref into ext_ref;
 
             -- produce message to the 'accept' topic:
-            perform tansu_produce_message('accept', partition_num, null, format('{"ref": "%s"}', ext_ref::text)::bytea);
+            perform nisshi_produce_message('accept', partition_num, null, format('{"ref": "%s"}', ext_ref::text)::bytea);
         end;
     else
         insert into order_status (order_request, status)
@@ -351,18 +351,18 @@ This repository contains a working example of:
 - the triggers on the `record` and `order_request` tables
 
 Prerequisites:
-- **[docker](https://www.docker.com)**, using [compose.yaml](compose.yaml) which runs [tansu](https://tansu.io) and [PostgreSQL](https://www.postgresql.org)
+- **[docker](https://www.docker.com)**, using [compose.yaml](compose.yaml) which runs [Nisshi](https://nisshi.io) and [PostgreSQL](https://www.postgresql.org)
 - **[just](https://github.com/casey/just)**, a handy way to save and run project-specific commands to run the example
 - **[uv](https://github.com/astral-sh/uv)**, an extremely fast Python package and project manager used to run the examples
 
 Once you have the prerequisites installed, clone this repository:
 
 ```shell
-git clone https://github.com/tansu-io/example-pg-tx-outbox.git
+git clone https://github.com/nisshi-io/example-pg-tx-outbox.git
 cd example-pg-tx-outbox
 ```
 
-To start [PostgreSQL](https://www.postgresql.org) and [tansu](https://tansu.io) running as docker containers:
+To start [PostgreSQL](https://www.postgresql.org) and [Nisshi](https://nisshi.io) running as docker containers:
 
 ```shell
 just
@@ -450,4 +450,4 @@ just select-stock
 
 ---
 
-Want to try it out for yourself? Clone (and ⭐) Tansu at [https://github.com/tansu-io/tansu](https://github.com/tansu-io/tansu).
+Want to try it out for yourself? Clone (and ⭐) Nisshi at [https://github.com/nisshi-io/solace-nisshi](https://github.com/nisshi-io/solace-nisshi).
