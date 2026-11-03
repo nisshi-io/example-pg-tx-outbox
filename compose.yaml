@@ -1,7 +1,8 @@
 ---
 services:
   nisshi:
-    image: ghcr.io/nisshi-io/solace-nisshi:0.8.1
+    image: ghcr.io/nisshi-io/solace-nisshi:latest
+    pull_policy: always
     environment:
       ADVERTISED_LISTENER_URL: tcp://nisshi:9092
       RUST_BACKTRACE: 1
@@ -11,7 +12,8 @@ services:
       primary:
         condition: service_healthy
   proxy:
-    image: ghcr.io/nisshi-io/solace-nisshi:0.8.1
+    image: ghcr.io/nisshi-io/solace-nisshi:latest
+    pull_policy: always
     environment:
       ORIGIN_URL: tcp://nisshi:9092
       ADVERTISED_LISTENER_URL: tcp://127.0.0.1:9092
