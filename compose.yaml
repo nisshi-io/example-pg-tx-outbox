@@ -1,9 +1,10 @@
 ---
 services:
-  tansu:
-    image: ghcr.io/tansu-io/tansu
+  nisshi:
+    image: ghcr.io/nisshi-io/solace-nisshi:latest
+    pull_policy: always
     environment:
-      ADVERTISED_LISTENER_URL: tcp://tansu:9092
+      ADVERTISED_LISTENER_URL: tcp://nisshi:9092
       RUST_BACKTRACE: 1
       RUST_LOG: warn
       STORAGE_ENGINE: postgres://postgres:postgres@primary
@@ -11,16 +12,17 @@ services:
       primary:
         condition: service_healthy
   proxy:
-    image: ghcr.io/tansu-io/tansu
+    image: ghcr.io/nisshi-io/solace-nisshi:latest
+    pull_policy: always
     environment:
-      ORIGIN_URL: tcp://tansu:9092
-      ADVERTISED_LISTENER_URL: tcp://localhost:9092
+      ORIGIN_URL: tcp://nisshi:9092
+      ADVERTISED_LISTENER_URL: tcp://127.0.0.1:9092
       RUST_LOG: warn
     command: ["proxy"]
     ports:
       - 9092:9092
     links:
-      - tansu
+      - nisshi
   primary:
     image: postgres:18
     environment:
@@ -29,7 +31,6 @@ services:
     command: -c wal_level=logical -c log_min_messages=notice
     volumes:
       - primary:/var/lib/postgresql
-      - ./etc/primary/:/docker-entrypoint-initdb.d/
     healthcheck:
       test: /usr/bin/pg_isready
       interval: 5s
